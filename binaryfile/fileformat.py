@@ -3,11 +3,29 @@ from os import SEEK_CUR
 import struct
 
 def read(handle, definition, result_type=dict):
+	"""
+	Read from a binary file handle and iterpret it using the file definition.
+	
+	Arguments:
+	handle -- The file-like object to read from. Must be binary.
+	definition -- The function defining the file structure. Must take one argument of type BinarySectionBase.
+	result_type -- Override the type of the return value with this dict-like type. Must implement __getitem__, __setitem__ and __contains__.
+
+	Returns a dict of names from the definition mapped to values from the file handle. Subsections become sub-dicts.
+	"""
 	reader = BinarySectionReader(handle, result_type)
 	definition(reader)
 	return reader.result
 
 def write(handle, data, definition):
+	"""
+	Write data to a binary file handle, interpreted using the file definition.
+	
+	Arguments:
+	handle -- The file-like object to write to. Must be binary.
+	data -- A dict of data to write to the handle. Must map all named fields in the definition to values. The output from read() should work.
+	definition -- The function defining the file structure. Must take one argument of type BinarySectionBase.
+	"""
 	writer = BinarySectionWriter(handle, data)
 	definition(writer)
 
@@ -20,6 +38,15 @@ class DataFormatError(Exception):
 	pass
 
 class BinarySectionBase(ABC):
+	"""
+	The base class for classes that interpret file specifications. Passed as the only argument to file specification functions.
+
+	Arguments:
+	handle -- The binary file handle to operate on.
+	byteorder -- The default byte-order. May be 'big' or 'little'. Defaults to 'big'.
+	name -- The name of this section. Set to the field name by parent sections when creating sub-section fields. Defaults to '(root)'.
+	parent -- The parent section itself. Set by parent sections.
+	"""
 	def __init__(self, handle):
 		self.handle = handle
 		self.byteorder = 'big'
@@ -27,27 +54,70 @@ class BinarySectionBase(ABC):
 		self.parent = None
 	@abstractmethod
 	def section(self, name, definition):
+		"""
+		Declare a section using the given definition.
+		
+		name -- The name of the field containing the section.
+		definition -- A function that takes a BinarySectionBase and defines the section.
+		
+		Returns the section as a dict-like object.
+		"""
 		...
 	@abstractmethod
 	def array(self, name):
+		"""Set the named field to [] and mark it as an array. Subsequent uses of the named field will append to the array."""
 		...
 	@abstractmethod
 	def bytes(self, name, size):
+		"""
+		Declare size number of bytes.
+		name -- The name of the field containing the bytes.
+		size -- The number of bytes the field occupies.
+		
+		Returns the bytes.
+		"""
 		...
 	@abstractmethod
 	def int(self, name, size, byteorder=None):
+		"""
+		Declare a signed integer taking up size number of bytes.
+		
+		name -- The name of the field containing the integer.
+		size -- The number of bytes the integer occupies.
+		byteorder -- The byte-order of this integer. May be 'big' or 'little'. If not specified, the byteorder property is used instead.
+		
+		Returns the integer.
+		"""
 		...
 	@abstractmethod
 	def uint(self, name, size, byteorder=None):
+		"""
+		Declare an unsigned integer taking up size number of bytes.
+		
+		name -- The name of the field containing the integer.
+		size -- The number of bytes the integer occupies.
+		byteorder -- The byte-order of this integer. May be 'big' or 'little'. If not specified, the byteorder property is used instead.
+		
+		Returns the integer.
+		"""
 		...
 	@abstractmethod
 	def struct(self, name, formatstr):
+		"""
+		Declare a struct defined by formatstr.
+		name -- The name of the field containing the integer.
+		formatstr -- A string defining the struct format, as specified in Python's built-in struct module.
+		
+		Returns the struct as a tuple.
+		"""
 		...
 	def qualified_name(self):
+		"""Get the name of parent sections and this section as a list."""
 		if self.parent:
-			return self.parent.qualified_name + [self.name]
+			return self.parent.qualified_name() + [self.name]
 		return [self.name]
-	def _get_qualified_field_name(self, name):
+	def get_qualified_field_name(self, name):
+		"""Get the qualified name of the named field, including the name of this section and its parents, as a dotted string. Useful for error messages."""
 		return '.'.join(self.qualified_name() + [name])
 
 class BinarySectionReader(BinarySectionBase):
@@ -55,11 +125,6 @@ class BinarySectionReader(BinarySectionBase):
 		super().__init__(handle)
 		self.result = result_type()
 		self.arrays = set()
-	def eof(self):
-		if len(self.handle.read(1)) == 0:
-			return True
-		self.handle.seek(-1, SEEK_CUR)
-		return False
 	def section(self, name, definition):
 		section = self._section(name, definition)
 		self._add_result(name, section.result)
@@ -92,7 +157,7 @@ class BinarySectionReader(BinarySectionBase):
 		if size is None or size == -1:
 			return bytes_
 		if len(bytes_) < size:
-			raise EOFError(f'While reading {self._get_qualified_field_name(name)}')
+			raise EOFError(f'While reading {self.get_qualified_field_name(name)}')
 		return bytes_
 	def _int(self, name, size, byteorder, signed):
 		if byteorder is None:
@@ -125,7 +190,7 @@ class BinarySectionWriter(BinarySectionBase):
 		bytes_ = self._get_data(name)
 		if not (size is None or size == -1):
 			if len(bytes_) != size:
-				raise DataFormatError(f'While writing bytes {self._get_qualified_field_name(name)}: ')
+				raise DataFormatError(f'While writing bytes {self.get_qualified_field_name(name)}: ')
 		self.handle.write(bytes_)
 		return bytes_
 	def int(self, name, size, byteorder=None):
@@ -137,7 +202,7 @@ class BinarySectionWriter(BinarySectionBase):
 		try:
 			bytes_ = struct.pack(formatstr, *data)
 		except struct.error as e:
-			raise DataFormatError(f'While writing struct {self._get_qualified_field_name(name)}: {str(e)}')
+			raise DataFormatError(f'While writing struct {self.get_qualified_field_name(name)}: {str(e)}')
 		self.handle.write(bytes_)
 		return self.data[name]
 	def _section(self, name, data, definition):
@@ -155,7 +220,7 @@ class BinarySectionWriter(BinarySectionBase):
 		try:
 			bytes_ = value.to_bytes(size, byteorder=byteorder, signed=signed)
 		except OverflowError as e:
-			raise DataFormatError(f'While writing (u)int {self._get_qualified_field_name(name)}: {str(e)}')
+			raise DataFormatError(f'While writing (u)int {self.get_qualified_field_name(name)}: {str(e)}')
 		self.handle.write(bytes_)
 		return value
 	def _get_data(self, name):

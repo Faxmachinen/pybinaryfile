@@ -11,19 +11,12 @@ class TestBinarySectionReader(unittest.TestCase):
 	def setUp(self):
 		self.bytes = b'\xff123'
 		self.file = io.BytesIO(self.bytes)
-	def test_eof(self):
-		def spec(f):
-			self.assertFalse(f.eof())
-			self.file.seek(0, io.SEEK_END)
-			self.assertTrue(f.eof())
-		fileformat.read(self.file, spec, result_type=SimpleDict)
 	def test_bytes(self):
 		def spec(f):
 			first = f.bytes('first', 1)
 			self.assertEqual(first, self.bytes[:1])
 			rest = f.bytes('rest', None)
 			self.assertEqual(rest, self.bytes[1:])
-			self.assertTrue(f.eof())
 		result = fileformat.read(self.file, spec, result_type=SimpleDict)
 		self.assertEqual(result, { 'first': self.bytes[:1], 'rest': self.bytes[1:] })
 	def test_uint(self):
