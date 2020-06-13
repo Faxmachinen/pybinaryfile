@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
 	# Write modified data to buffer first, in case there are any errors
 	modified_buffer = io.BytesIO()
-	binaryfile.write(modified_buffer, file_spec, data)
+	binaryfile.write(modified_buffer, data, file_spec)
 
 	# Then write back to file
 	with open('myfile.dat', 'wb') as file_handle:
@@ -65,7 +65,7 @@ def file_spec(binary_section):
 if __name__ == '__main__':
 	# You can use a custom dictionary-like result class for convenience
 	# SimpleDict allows us to access entries by attribute notation
-	with open('myfile.dat', 'rb') as file_handle:
+	with open('myfile2.dat', 'rb') as file_handle:
 		data = binaryfile.read(file_handle, file_spec, result_type=binaryfile.utils.SimpleDict)
 	print(data.section2.subsection1.position)
 ```
