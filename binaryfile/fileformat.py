@@ -11,6 +11,10 @@ def write(handle, data, definition):
 	writer = BinarySectionWriter(handle, data)
 	definition(writer)
 
+class DefinitionError(Exception):
+	"""Throw when the definition contains errors."""
+	pass
+
 class DataFormatError(Exception):
 	"""Thrown when the data does not match the file format."""
 	pass
@@ -25,7 +29,7 @@ class BinarySectionBase(ABC):
 	def section(self, name, definition):
 		...
 	@abstractmethod
-	def repeat(self, name, definition):
+	def array(self, name):
 		...
 	@abstractmethod
 	def bytes(self, name, size):
@@ -50,6 +54,7 @@ class BinarySectionReader(BinarySectionBase):
 	def __init__(self, handle, result_type=dict):
 		super().__init__(handle)
 		self.result = result_type()
+		self.arrays = set()
 	def eof(self):
 		if len(self.handle.read(1)) == 0:
 			return True
@@ -57,19 +62,14 @@ class BinarySectionReader(BinarySectionBase):
 		return False
 	def section(self, name, definition):
 		section = self._section(name, definition)
-		self.result[name] = section.result
+		self._add_result(name, section.result)
 		return section.result
-	def repeat(self, name, definition):
-		i = 0
-		results = self.result[name] = []
-		while not self.eof():
-			section = self._section(f'{name}[{i}]', definition)
-			results.append(section.result)
-			yield section.result
-			i += 1
+	def array(self, name):
+		self.result[name] = []
+		self.arrays.add(name)
 	def bytes(self, name, size):
 		result = self._read_bytes(name, size)
-		self.result[name] = result
+		self._add_result(name, result)
 		return result
 	def int(self, name, size, byteorder=None):
 		return self._int(name, size, byteorder, signed=True)
@@ -79,7 +79,7 @@ class BinarySectionReader(BinarySectionBase):
 		size = struct.calcsize(formatstr)
 		bytes_ = self._read_bytes(name, size)
 		result = struct.unpack(formatstr, bytes_)
-		self.result[name] = result
+		self._add_result(name, result)
 		return result
 	def _section(self, name, definition):
 		section = type(self)(self.handle, type(self.result))
@@ -99,25 +99,30 @@ class BinarySectionReader(BinarySectionBase):
 			byteorder = self.byteorder
 		bytes_ = self._read_bytes(name, size)
 		result = int.from_bytes(bytes_, byteorder=byteorder, signed=signed)
-		self.result[name] = result
+		self._add_result(name, result)
 		return result
+	def _add_result(self, name, result):
+		if name in self.result:
+			if name in self.arrays:
+				self.result[name].append(result)
+			else:
+				raise DefinitionError(f'Used "{name}" multiple times in the same section without declaring it an array.')
+		else:
+			self.result[name] = result
 
 class BinarySectionWriter(BinarySectionBase):
 	def __init__(self, handle, data):
 		super().__init__(handle)
 		self.data = data
+		self.indices = {}
 	def section(self, name, definition):
-		self._section(name, self.data[name], definition)
-		return self.data[name]
-	def repeat(self, name, definition):
-		i = 0
-		for section in self.data[name]:
-			self._section(f'{name}[{i}]', section, definition)
-			yield section
-			i += 1
-		return self.data[name]
+		data = self._get_data(name)
+		self._section(name, data, definition)
+		return data
+	def array(self, name):
+		self.indices[name] = 0
 	def bytes(self, name, size):
-		bytes_ = self.data[name]
+		bytes_ = self._get_data(name)
 		if not (size is None or size == -1):
 			if len(bytes_) != size:
 				raise DataFormatError(f'While writing bytes {self._get_qualified_field_name(name)}: ')
@@ -128,8 +133,9 @@ class BinarySectionWriter(BinarySectionBase):
 	def uint(self, name, size, byteorder=None):
 		return self._int(name, size, byteorder, signed=False)
 	def struct(self, name, formatstr):
+		data = self._get_data(name)
 		try:
-			bytes_ = struct.pack(formatstr, *self.data[name])
+			bytes_ = struct.pack(formatstr, *data)
 		except struct.error as e:
 			raise DataFormatError(f'While writing struct {self._get_qualified_field_name(name)}: {str(e)}')
 		self.handle.write(bytes_)
@@ -141,7 +147,7 @@ class BinarySectionWriter(BinarySectionBase):
 		definition(section)
 		return section.data
 	def _int(self, name, size, byteorder, signed):
-		value = int(self.data[name])
+		value = int(self._get_data(name))
 		if size is None or size == -1:
 			size = (value.bit_length() + 7) // 8
 		if byteorder is None:
@@ -152,3 +158,12 @@ class BinarySectionWriter(BinarySectionBase):
 			raise DataFormatError(f'While writing (u)int {self._get_qualified_field_name(name)}: {str(e)}')
 		self.handle.write(bytes_)
 		return value
+	def _get_data(self, name):
+		if name in self.indices:
+			if self.indices[name] >= len(self.data[name]):
+				raise DataFormatError(f'Data array "{name}" has {len(self.data[name])} items, but more are required.')
+			result = self.data[name][self.indices[name]]
+			self.indices[name] += 1
+		else:
+			result = self.data[name]
+		return result

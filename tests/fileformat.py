@@ -57,25 +57,19 @@ class TestBinarySectionReader(unittest.TestCase):
 		result = fileformat.read(self.file, spec, result_type=SimpleDict)
 		self.assertTrue(self.entered_section)
 		self.assertEqual(result, { 'section': { 'first': self.bytes[:1] }})
-	def test_repeat(self):
-		self.entered_section = 0
-		self.entered_loop = 0
+	def test_empty_array(self):
 		def spec(f):
-			def section(f):
-				self.entered_section += 1
-				self.assertIsInstance(f, fileformat.BinarySectionReader)
-				f.bytes('byte', 1)
-			for s in f.repeat('sections', section):
-				self.entered_loop += 1
-				self.assertIsInstance(s, SimpleDict)
-			self.assertTrue(f.eof())
+			f.array('empty')
 		result = fileformat.read(self.file, spec, result_type=SimpleDict)
-		self.assertEqual(self.entered_section, len(self.bytes))
-		self.assertEqual(self.entered_loop, len(self.bytes))
-		self.assertIsInstance(result.sections, list)
-		self.assertEqual(len(result.sections), len(self.bytes))
-		for i in range(len(self.bytes)):
-			self.assertEqual(result.sections[i], { 'byte': self.bytes[i:i+1] })
+		self.assertTrue('empty' in result)
+		self.assertEqual(result.empty, [])
+	def test_array(self):
+		def spec(f):
+			f.array('uints')
+			for i in range(len(self.bytes)):
+				f.uint('uints', 1)
+		result = fileformat.read(self.file, spec, result_type=SimpleDict)
+		self.assertEqual(result, { 'uints': [b for b in self.bytes] })
 	def test_bytes_eof(self):
 		def spec(f):
 			f.bytes('too_long', len(self.bytes) + 1)
@@ -133,22 +127,14 @@ class TestBinarySectionWriter(unittest.TestCase):
 		fileformat.write(self.file, data, spec)
 		self.assertTrue(self.entered_section)
 		self.assertEqual(self.file.getvalue(), b'Q')
-	def test_repeat(self):
-		self.entered_section = 0
-		self.entered_loop = 0
+	def test_array(self):
 		def spec(f):
-			def section(f):
-				self.entered_section += 1
-				self.assertIsInstance(f, fileformat.BinarySectionWriter)
-				f.bytes('byte', 1)
-			for s in f.repeat('sections', section):
-				self.entered_loop += 1
-				self.assertIsInstance(s, dict)
-		data = { 'sections': [{ 'byte': b'1' }, { 'byte': b'2' }, { 'byte': b'3' }, { 'byte': b'4' }]}
+			f.array('uints')
+			for i in range(4):
+				f.uint('uints', 1)
+		data = { 'uints': [1, 2, 3, 4] }
 		fileformat.write(self.file, data, spec)
-		self.assertEqual(self.entered_section, 4)
-		self.assertEqual(self.entered_loop, 4)
-		self.assertEqual(self.file.getvalue(), b'1234')
+		self.assertEqual(self.file.getvalue(), b'\x01\x02\x03\x04')
 	def test_bytes_oversized(self):
 		def spec(f):
 			f.bytes('first', 1)

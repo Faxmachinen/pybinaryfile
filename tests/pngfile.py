@@ -9,7 +9,9 @@ from binaryfile.utils import SimpleDict
 
 def png_root(f):
 	header = f.bytes('header', 8)
-	for chunk in f.repeat('chunks', png_chunk):
+	f.array('chunks')
+	while True:
+		chunk = f.section('chunks', png_chunk)
 		if chunk.type == b'IEND':
 			break
 
