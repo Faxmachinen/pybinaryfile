@@ -2,7 +2,9 @@ from abc import ABC, abstractmethod
 from os import SEEK_CUR
 import struct
 
-def read(handle, definition, result_type=dict):
+from .utils import SimpleDict
+
+def read(handle, definition, result_type=SimpleDict):
 	"""
 	Read from a binary file handle and iterpret it using the file definition.
 	
