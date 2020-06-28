@@ -1,6 +1,6 @@
 # binaryfile
 
-A library for defining the structure of a binary file and then reading or writing it. Should work with Python 3.6 or later.
+A library for defining the structure of a binary file and then reading or writing it.
 
 ## Getting Started
 
@@ -10,7 +10,16 @@ You will need Python 3.6 or later.
 
 ### Installing
 
-This Python package does not yet have an installer, so just copy the "binaryfile" folder into your project.
+Windows with Python launcher:
+
+```bat
+py -3 -m pip install binaryfile
+```
+
+Linux with python3-pip:
+```bash
+pip3 install binaryfile
+```
 
 ### How to use
 
@@ -22,9 +31,9 @@ import binaryfile
 
 # Define the file structure
 def file_spec(binary_section):
-	binary_section.bytes('identifier', 4)  # Four bytes identifying the file.
-	size = binary_section.uint('size', 2)  # A two-byte unsigned integer denoting the size of the file. Note that we store the result in a variable.
-	binary_section.bytes('text', size)  # Read a variable number of bytes based on the size we stored.
+	binary_section.bytes('identifier', 4)  # Four bytes
+	size = binary_section.uint('size', 2)  # A two-byte unsigned integer
+	binary_section.bytes('text', size)  # A variable number of bytes
 
 if __name__ == '__main__':
 	# Read the file and print the text field
@@ -36,7 +45,9 @@ if __name__ == '__main__':
 	data['text'] += ' More Text!'.encode('utf-8')
 	data['size'] = len(data['text'])  # Update the size
 
-	# Write modified data to buffer first, in case there are any errors
+	# Errors will throw exceptions and
+	# cause the written file to be truncated,
+	# so write to a memory buffer first
 	modified_buffer = io.BytesIO()
 	binaryfile.write(modified_buffer, data, file_spec)
 
