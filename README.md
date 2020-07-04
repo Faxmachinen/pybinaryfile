@@ -46,7 +46,7 @@ import io
 
 # Define the file structure
 def file_spec(f):
-	count = f.count('size', 'text', 2)  # A two-byte unsigned integer
+	size = f.count('size', 'text', 2)  # A two-byte unsigned integer
 	f.bytes('text', size)  # A variable number of bytes
 
 if __name__ == '__main__':
