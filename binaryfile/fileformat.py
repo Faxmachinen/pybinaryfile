@@ -72,16 +72,19 @@ class BinarySectionBase(ABC):
 		"""
 		...
 	@abstractmethod
-	def array(self, name):
-		"""Set the named field to [] and mark it as an array. Subsequent uses of the named field will append to the array."""
+	def array(self, *names):
+		"""
+		Set the named fields to [] and mark them as arrays.
+		Repeated use of a marked field will append to its array instead of raising an error.
+		"""
 		...
 	@abstractmethod
-	def count(self, name, array_name, size, byteorder=None):
+	def count(self, name, target_name, size, byteorder=None):
 		"""
-		Like uint, but is automatically updated with the len() of array_name.
+		Like uint, but is automatically updated with the len() of target_name.
 
 		name  -- The name of the count field.
-		array_name -- The name of the array field whose count this represents.
+		target_name -- The name of a bytes or array field whose count this represents.
 		size -- The number of bytes the count field occupies.
 		byteorder -- The byte order of the count field. May be 'big' or 'little'. If not specified, the byteorder property is used instead.
 		"""

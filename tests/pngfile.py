@@ -1,11 +1,13 @@
 import unittest
 import zlib
 from pathlib import Path
-
-import sys
-sys.path.append('..')
+import os
 from binaryfile import fileformat
-from binaryfile.utils import SimpleDict
+
+test_dir = Path(os.path.realpath(__file__)).parent
+input_file = test_dir / 'files/green.png'
+output_unmodified = test_dir / 'out/green_unmodified.png'
+output_modified = test_dir / 'out/green_modified.png'
 
 def png_root(f):
 	header = f.bytes('header', 8)
@@ -35,7 +37,7 @@ def png_ihdr(f):
 
 def read_data(fname):
 	with open(fname, 'rb') as fh:
-		return fileformat.read(fh, png_root, result_type=SimpleDict)
+		return fileformat.read(fh, png_root)
 def write_data(file, data):
 	Path(file).parent.mkdir(parents=True, exist_ok=True)
 	with open(file, 'wb') as fh:
@@ -52,7 +54,7 @@ def set_palette(data, index, rgb):
 
 class TestPng(unittest.TestCase):
 	def testReadPng(self):
-		data = read_data('files/green.png')
+		data = read_data(input_file)
 		self.assertEqual(data.header, b'\x89PNG\r\n\x1a\n')
 		ihdr_chunk = data.chunks[0]
 		self.assertEqual(ihdr_chunk.type, b'IHDR')
@@ -62,14 +64,14 @@ class TestPng(unittest.TestCase):
 		iend_chunk = data.chunks[-1]
 		self.assertEqual(iend_chunk.type, b'IEND')
 	def testWriteUnmodifiedPng(self):
-		data = read_data('files/green.png')
-		write_data('out/green_unmodified.png', data)
-		self.assertEqual(slurp_bytes('files/green.png'), slurp_bytes('out/green_unmodified.png'))
+		data = read_data(input_file)
+		write_data(output_unmodified, data)
+		self.assertEqual(slurp_bytes(input_file), slurp_bytes(output_unmodified))
 	def testWriteModifiedPng(self):
-		data = read_data('files/green.png')
+		data = read_data(input_file)
 		set_palette(data, 4, (255, 0, 255))
-		write_data('out/green_modified.png', data)
-		self.assertNotEqual(slurp_bytes('files/green.png'), slurp_bytes('out/green_modified.png'))
+		write_data(output_modified, data)
+		self.assertNotEqual(slurp_bytes(input_file), slurp_bytes(output_modified))
 
 if __name__ == '__main__':
 	unittest.main()
