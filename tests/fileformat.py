@@ -2,41 +2,53 @@ import unittest
 import io
 import struct
 
-import sys
-sys.path.append('..')
 from binaryfile import fileformat
-from binaryfile.utils import SimpleDict
 
 class TestBinarySectionReader(unittest.TestCase):
 	def setUp(self):
 		self.bytes = b'\xff123'
 		self.file = io.BytesIO(self.bytes)
+	def test_skip(self):
+		def spec(f):
+			f.skip(1)
+			f.skip(3)
+		result = fileformat.read(self.file, spec)
+		self.assertEqual(result, { '__skipped': [self.bytes[0:1], self.bytes[1:4]] })
+	def test_count(self):
+		file = io.BytesIO(b'\x05Q12345Q')
+		def spec(f):
+			count = f.count('count', 'array', 1)
+			f.skip(1)
+			f.bytes('array', count)
+		result = fileformat.read(file, spec)
+		self.assertEqual(result.count, 5)
+		self.assertEqual(result.array, b'12345')
 	def test_bytes(self):
 		def spec(f):
 			first = f.bytes('first', 1)
 			self.assertEqual(first, self.bytes[:1])
 			rest = f.bytes('rest', None)
 			self.assertEqual(rest, self.bytes[1:])
-		result = fileformat.read(self.file, spec, result_type=SimpleDict)
+		result = fileformat.read(self.file, spec)
 		self.assertEqual(result, { 'first': self.bytes[:1], 'rest': self.bytes[1:] })
 	def test_uint(self):
 		expected_value = int.from_bytes(self.bytes[:4], 'big', signed=False)
 		def spec(f):
 			value = f.uint('uint', 4)
 			self.assertEqual(value, expected_value)
-		result = fileformat.read(self.file, spec, result_type=SimpleDict)
+		result = fileformat.read(self.file, spec)
 		self.assertEqual(result, { 'uint': expected_value })
 	def test_int(self):
 		expected_value = int.from_bytes(self.bytes[:4], 'big', signed=True)
 		def spec(f):
 			value = f.int('int', 4)
 			self.assertEqual(value, expected_value)
-		result = fileformat.read(self.file, spec, result_type=SimpleDict)
+		result = fileformat.read(self.file, spec)
 		self.assertEqual(result, { 'int': expected_value })
 	def test_struct(self):
 		def spec(f):
 			f.struct('struct', '>?3s')
-		result = fileformat.read(self.file, spec, result_type=SimpleDict)
+		result = fileformat.read(self.file, spec)
 		self.assertEqual(result, { 'struct': struct.unpack('>?3s', self.bytes) })
 	def test_section(self):
 		self.entered_section = False
@@ -47,13 +59,13 @@ class TestBinarySectionReader(unittest.TestCase):
 				f.bytes('first', 1)
 			section = f.section('section', section)
 			self.assertEqual(section, { 'first': self.bytes[:1] })
-		result = fileformat.read(self.file, spec, result_type=SimpleDict)
+		result = fileformat.read(self.file, spec)
 		self.assertTrue(self.entered_section)
 		self.assertEqual(result, { 'section': { 'first': self.bytes[:1] }})
 	def test_empty_array(self):
 		def spec(f):
 			f.array('empty')
-		result = fileformat.read(self.file, spec, result_type=SimpleDict)
+		result = fileformat.read(self.file, spec)
 		self.assertTrue('empty' in result)
 		self.assertEqual(result.empty, [])
 	def test_array(self):
@@ -61,22 +73,36 @@ class TestBinarySectionReader(unittest.TestCase):
 			f.array('uints')
 			for i in range(len(self.bytes)):
 				f.uint('uints', 1)
-		result = fileformat.read(self.file, spec, result_type=SimpleDict)
+		result = fileformat.read(self.file, spec)
 		self.assertEqual(result, { 'uints': [b for b in self.bytes] })
 	def test_bytes_eof(self):
 		def spec(f):
 			f.bytes('too_long', len(self.bytes) + 1)
 		with self.assertRaises(EOFError):
-			fileformat.read(self.file, spec, result_type=SimpleDict)
+			fileformat.read(self.file, spec)
 	def test_uint_eof(self):
 		def spec(f):
 			f.uint('too_long', len(self.bytes) + 1)
 		with self.assertRaises(EOFError):
-			fileformat.read(self.file, spec, result_type=SimpleDict)
+			fileformat.read(self.file, spec)
 
 class TestBinarySectionWriter(unittest.TestCase):
 	def setUp(self):
 		self.file = io.BytesIO()
+	def test_skip_no_data(self):
+		def spec(f):
+			f.skip(1)
+			f.skip(3)
+		data = { }
+		fileformat.write(self.file, data, spec)
+		self.assertEqual(self.file.getvalue(), b'\x00' * 4)
+	def test_skip_with_data(self):
+		def spec(f):
+			f.skip(1)
+			f.skip(3)
+		data = { '__skipped': [b'1', b'234'] }
+		fileformat.write(self.file, data, spec)
+		self.assertEqual(self.file.getvalue(), b'1234')
 	def test_bytes(self):
 		def spec(f):
 			first = f.bytes('first', 1)
@@ -128,6 +154,13 @@ class TestBinarySectionWriter(unittest.TestCase):
 		data = { 'uints': [1, 2, 3, 4] }
 		fileformat.write(self.file, data, spec)
 		self.assertEqual(self.file.getvalue(), b'\x01\x02\x03\x04')
+	def test_skipped_oversized(self):
+		def spec(f):
+			f.skip(2)
+		data = { '__skipped': [b'123'] }
+		with self.assertRaises(fileformat.DataFormatError):
+			fileformat.write(self.file, data, spec)
+			self.fail(f"Should have thrown a DataFormatError for trying to write b'123' into a two-byte skipped field, but wrote {self.file.getvalue()} instead.")
 	def test_bytes_oversized(self):
 		def spec(f):
 			f.bytes('first', 1)

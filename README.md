@@ -7,10 +7,10 @@ import binaryfile
 
 def png(b):
 	b.byteorder = 'big'
-	b.bytes('misc', 16)
-	b.int('width', 4)
-	b.int('height', 4)
-	b.int('depth', 1)
+	b.skip(16)
+	b.uint('width', 4)
+	b.uint('height', 4)
+	b.uint('depth', 1)
 
 with open('image.png', 'rb') as fh:
 	data = binaryfile.read(fh, png)
@@ -41,14 +41,13 @@ pip3 install binaryfile
 If you want to read or write to a binary file, first you will need to define the file structure. You do this by writing a function that takes a single argument, which is a subclass of binaryfile.fileformat.BinarySectionBase. The file structure is then defined by calling methods on said argument:
 
 ```python
-import io
 import binaryfile
+import io
 
 # Define the file structure
-def file_spec(binary_section):
-	binary_section.bytes('identifier', 4)  # Four bytes
-	size = binary_section.uint('size', 2)  # A two-byte unsigned integer
-	binary_section.bytes('text', size)  # A variable number of bytes
+def file_spec(f):
+	count = f.count('size', 'text', 2)  # A two-byte unsigned integer
+	f.bytes('text', size)  # A variable number of bytes
 
 if __name__ == '__main__':
 	# Read the file and print the text field
@@ -58,7 +57,6 @@ if __name__ == '__main__':
 
 	# Modify the text field
 	data.text += ' More Text!'.encode('utf-8')
-	data.size = len(data['text'])  # Update the size
 
 	# Errors will throw exceptions and
 	# cause the written file to be truncated,
@@ -72,21 +70,21 @@ if __name__ == '__main__':
 		
 ```
 
-You can break the definition into reusable sections and sub-sections:
+You can break the definition into reusable sections:
 
 ```python
-def subsection_spec(binary_section):
-	binary_section.struct('position', 'fff')  # Three floats, using a format string from Python's built-in struct module.
+def subsection_spec(f):
+	f.struct('position', 'fff')  # Three floats, using a format string from Python's built-in struct module
 
-def section_spec(binary_section):
-	binary_section.int('type', 1)  # A one-byte signed integer.
-	binary_section.section('subsection1', subsection_spec)  # Three floats, as specified in subsection_spec.
-	binary_section.section('subsection2', subsection_spec)  # Section can be reused.
+def section_spec(f):
+	f.int('type', 1)  # A one-byte signed integer
+	f.section('subsection1', subsection_spec)  # Three floats, as specified in subsection_spec
+	f.section('subsection2', subsection_spec)
 
-def file_spec(binary_section):
-	binary_section.section(f'section1', section_spec)
-	binary_section.section(f'section2', section_spec)
-	binary_section.section(f'section3', section_spec)
+def file_spec(f):
+	f.section(f'section1', section_spec)
+	f.section(f'section2', section_spec)
+	f.section(f'section3', section_spec)
 
 if __name__ == '__main__':
 	with open('myfile2.dat', 'rb') as file_handle:
@@ -97,11 +95,11 @@ if __name__ == '__main__':
 And you can declare fields to be arrays and use loops:
 
 ```python
-def file_spec(binary_section):
-	count = binary_section.uint('count', 4)
-	binary_section.array('positions')  # Declare "positions" to be an array
+def file_spec(f):
+	f.array('positions')  # Declare "positions" to be an array
+	count = f.count('count', 'positions', 4)
 	for i in range(count):
-		binary_section.struct('positions', 'fff')  # Now each time "positions" is used, it's the next element of the array
+		f.struct('positions', 'fff')  # Each time "positions" is used, it's the next element of the array
 ```
 
 ### Configuration
@@ -128,10 +126,13 @@ def spec(b):
 
 ```
 
-### Running the tests
+### Automated tests
+#### Setting up the environment
+1. Create and activate a [Python virtual environment](https://docs.python.org/3/library/venv.html).
+2. From the project root, run `./setup.py develop` to install a binaryfile package linked to the project source into the venv.
 
-To run the tests, CD into the "tests" folder and run the scripts there.
+#### Running the tests
+Make sure that the venv is active, then run the Python files in the `tests` folder.
 
 ### License
-
 This project is licensed under MIT License, see [LICENSE](LICENSE) for details.

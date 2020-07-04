@@ -55,6 +55,12 @@ class BinarySectionBase(ABC):
 		self.name = '(root)'
 		self.parent = None
 	@abstractmethod
+	def skip(self, size):
+		"""
+		Skip size number of bytes that you don't really care about.
+		After reading, the skipped fields are sill available in the result as an array named '__skipped', and will be written back when writing.
+		"""
+	@abstractmethod
 	def section(self, name, definition):
 		"""
 		Declare a section using the given definition.
@@ -68,6 +74,17 @@ class BinarySectionBase(ABC):
 	@abstractmethod
 	def array(self, name):
 		"""Set the named field to [] and mark it as an array. Subsequent uses of the named field will append to the array."""
+		...
+	@abstractmethod
+	def count(self, name, array_name, size, byteorder=None):
+		"""
+		Like uint, but is automatically updated with the len() of array_name.
+
+		name  -- The name of the count field.
+		array_name -- The name of the array field whose count this represents.
+		size -- The number of bytes the count field occupies.
+		byteorder -- The byte order of the count field. May be 'big' or 'little'. If not specified, the byteorder property is used instead.
+		"""
 		...
 	@abstractmethod
 	def bytes(self, name, size):
@@ -127,6 +144,12 @@ class BinarySectionReader(BinarySectionBase):
 		super().__init__(handle)
 		self.result = result_type()
 		self.arrays = set()
+	def skip(self, size):
+		if not '__skipped' in self.result:
+			self.result['__skipped'] = []
+		skipped = self.result['__skipped']
+		name = f'__skipped[{len(skipped)}]'
+		skipped.append(self._read_bytes(name, size))
 	def section(self, name, definition):
 		section = self._section(name, definition)
 		self._add_result(name, section.result)
@@ -134,6 +157,8 @@ class BinarySectionReader(BinarySectionBase):
 	def array(self, name):
 		self.result[name] = []
 		self.arrays.add(name)
+	def count(self, name, array_name, size, byteorder=None):
+		return self.uint(name, size, byteorder)
 	def bytes(self, name, size):
 		result = self._read_bytes(name, size)
 		self._add_result(name, result)
@@ -182,18 +207,27 @@ class BinarySectionWriter(BinarySectionBase):
 		super().__init__(handle)
 		self.data = data
 		self.indices = {}
+	def skip(self, size):
+		if not '__skipped' in self.data:
+			self.handle.write(b'\x00' * size)
+			return
+		if not '__skipped' in self.indices:
+			self.array('__skipped')
+		bytes_ = self._get_data('__skipped')
+		self._write_bytes('__skipped', size, bytes_)
+		return bytes_
 	def section(self, name, definition):
 		data = self._get_data(name)
 		self._section(name, data, definition)
 		return data
 	def array(self, name):
 		self.indices[name] = 0
+	def count(self, name, array_name, size, byteorder=None):
+		self.data[name] = len(self.data[array_name])
+		return self.uint(self, name, size, byteorder)
 	def bytes(self, name, size):
 		bytes_ = self._get_data(name)
-		if not (size is None or size == -1):
-			if len(bytes_) != size:
-				raise DataFormatError(f'While writing bytes {self.get_qualified_field_name(name)}: ')
-		self.handle.write(bytes_)
+		self._write_bytes(name, size, bytes_)
 		return bytes_
 	def int(self, name, size, byteorder=None):
 		return self._int(name, size, byteorder, signed=True)
@@ -234,3 +268,8 @@ class BinarySectionWriter(BinarySectionBase):
 		else:
 			result = self.data[name]
 		return result
+	def _write_bytes(self, name, size, bytes_):
+		if not (size is None or size == -1):
+			if len(bytes_) != size:
+				raise DataFormatError(f'While writing bytes {self.get_qualified_field_name(name)}: Expected {repr(bytes_)} to be {size} bytes long.')
+		self.handle.write(bytes_)
