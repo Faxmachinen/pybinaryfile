@@ -103,6 +103,13 @@ class TestBinarySectionWriter(unittest.TestCase):
 		data = { '__skipped': [b'1', b'234'] }
 		fileformat.write(self.file, data, spec)
 		self.assertEqual(self.file.getvalue(), b'1234')
+	def test_count(self):
+		def spec(f):
+			count = f.count('tcount', 'text', 1)
+			f.bytes('text', count)
+		data = { 'text': b'12345' }
+		fileformat.write(self.file, data, spec)
+		self.assertEqual(self.file.getvalue(), b'\x0512345')
 	def test_bytes(self):
 		def spec(f):
 			first = f.bytes('first', 1)

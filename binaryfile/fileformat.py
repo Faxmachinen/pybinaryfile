@@ -227,7 +227,7 @@ class BinarySectionWriter(BinarySectionBase):
 		self.indices[name] = 0
 	def count(self, name, array_name, size, byteorder=None):
 		self.data[name] = len(self.data[array_name])
-		return self.uint(self, name, size, byteorder)
+		return self.uint(name, size, byteorder)
 	def bytes(self, name, size):
 		bytes_ = self._get_data(name)
 		self._write_bytes(name, size, bytes_)
