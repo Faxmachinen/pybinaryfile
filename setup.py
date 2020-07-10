@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="binaryfile",
-    version="1.1.1",
+    version="1.1.2",
     author="Faxmachinen",
     author_email="binaryfile@faxmachinen.com",
     description="A library for defining the structure of a binary file and then reading or writing it.",
