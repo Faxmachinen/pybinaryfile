@@ -102,6 +102,11 @@ def file_spec(f):
 		f.struct('positions', 'fff')  # Each time "positions" is used, it's the next element of the array
 ```
 
+### Reference
+The reference documentation for this module is in the source at [binaryfile/fileformat.py](binaryfile/fileformat.py).
+- Look at the `BinarySectionBase` class for all the methods available when writing a specification.
+- Then check out the `read` and `write` functions for how to use the specification to read and write file-like objects. The `read` and `write` functions are also available from the `binaryfile` namespace.
+
 ### Configuration
 #### Result type
 By default, a file is read into a `binaryfile.utils.SimpleDict`, which allows you to access the fields by dot notation (e.g. `foo.bar.baz`). This means you cannot use names that are invalid field names in Python.
