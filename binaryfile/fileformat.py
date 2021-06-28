@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from os import SEEK_CUR
 import struct
+import io
 
 from .utils import SimpleDict
 
@@ -19,7 +20,7 @@ def read(handle, definition, result_type=SimpleDict):
 	definition(reader)
 	return reader.result
 
-def write(handle, data, definition):
+def write(handle, data, definition, buffered=True):
 	"""
 	Write data to a binary file handle, interpreted using the file definition.
 	
@@ -27,9 +28,16 @@ def write(handle, data, definition):
 	handle -- The file-like object to write to. Must be binary.
 	data -- A dict of data to write to the handle. Must map all named fields in the definition to values. The output from read() should work.
 	definition -- The function defining the file structure. Must take one argument of type BinarySectionBase.
+	buffered -- Whether to write to a memory buffer first, to avoid writing partial data to the handle in the event of an error.
 	"""
-	writer = BinarySectionWriter(handle, data)
+	if buffered:
+		buffer = io.BytesIO()
+	else:
+		buffer = handle
+	writer = BinarySectionWriter(buffer, data)
 	definition(writer)
+	if buffered:
+		handle.write(buffer.getvalue())
 
 class DefinitionError(Exception):
 	"""Throw when the definition contains errors."""

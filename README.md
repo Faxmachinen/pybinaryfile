@@ -58,15 +58,9 @@ if __name__ == '__main__':
 	# Modify the text field
 	data.text += ' More Text!'.encode('utf-8')
 
-	# Errors will throw exceptions and
-	# cause the written file to be truncated,
-	# so write to a memory buffer first
-	modified_buffer = io.BytesIO()
-	binaryfile.write(modified_buffer, data, file_spec)
-
 	# Then write back to file
 	with open('myfile.dat', 'wb') as file_handle:
-		file_handle.write(modified_buffer.getvalue())
+		binaryfile.write(file_handle, data, file_spec)
 		
 ```
 
