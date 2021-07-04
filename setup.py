@@ -11,7 +11,7 @@ setuptools.setup(
     description="A library for defining the structure of a binary file and then reading or writing it.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Faxmachinen/pybinaryfile",
+    url="https://github.com/Faxmachinen/pybinaryfile/tree/1.2.0",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
