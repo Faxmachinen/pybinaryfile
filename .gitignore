@@ -3,3 +3,4 @@ tests/out
 *.egg-info
 /build
 /dist
+/testenv
